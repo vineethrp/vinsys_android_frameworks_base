@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-/* //device/apps/common/assets/res/any/strings.xml
+/* //device/apps/common/assets/res/any/colors.xml
 **
 ** Copyright 2006, The Android Open Source Project
 **
@@ -18,13 +18,18 @@
 */
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="reboot">Reboot</string>
-    <string name="reboot_progress">Rebooting..\u2026</string>
-    <string name="reboot_confirm" product="default">Your phone will reboot.</string>
-    <string name="reboot_confirm_question" product="default">Do you want to reboot?</string>
-    <string name="reboot_title" product="default">Reboot Phone</string>
 
-    <string name="reboot_mainos">Reboot Phone</string>
-    <string name="reboot_recovery">Reboot to Recovery</string>
-    <string name="reboot_bootloader">Reboot to Bootloader</string>
+    <!-- Define Reboot options Strings-->
+    <array name="reboot_options" translatable="false">
+        <item>@string/reboot_mainos</item>
+        <item>@string/reboot_recovery</item>
+        <item>@string/reboot_bootloader</item>
+    </array>
+
+    <!-- Define Reboot options action strings -->
+    <string-array name="reboot_actions" translatable="false">
+        <item></item>
+        <item>recovery</item>
+        <item>bootloader</item>
+    </string-array>
 </resources>

@@ -21,6 +21,7 @@ import android.app.ActivityManagerNative;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.IActivityManager;
+import android.app.KeyguardManager;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.IBluetoothManager;
@@ -47,6 +48,7 @@ import com.android.internal.telephony.ITelephony;
 
 import android.util.Log;
 import android.view.WindowManager;
+import android.view.KeyEvent;
 
 public final class ShutdownThread extends Thread {
     // constants
@@ -104,6 +106,24 @@ public final class ShutdownThread extends Thread {
         shutdownInner(context, confirm);
     }
 
+    static void rebootConfirmInner(final Context context, final int titleResourceId, final int resourceId) {
+        final CloseDialogReceiver closer = new CloseDialogReceiver(context);
+        sConfirmDialog = new AlertDialog.Builder(context)
+            .setTitle(titleResourceId)
+            .setMessage(resourceId)
+            .setPositiveButton(com.android.internal.R.string.yes, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    beginShutdownSequence(context);
+                }
+            })
+            .setNegativeButton(com.android.internal.R.string.no, null)
+            .create();
+        closer.dialog = sConfirmDialog;
+        sConfirmDialog.setOnDismissListener(closer);
+        sConfirmDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
+        sConfirmDialog.show();
+    }
+
     static void shutdownInner(final Context context, boolean confirm) {
         // ensure that only one thread is trying to power down.
         // any additional calls are just returned
@@ -122,32 +142,56 @@ public final class ShutdownThread extends Thread {
                 : (longPressBehavior == 2
                         ? com.android.internal.R.string.shutdown_confirm_question
                         : com.android.internal.R.string.shutdown_confirm));
+        final int titleResourceId = mRebootSafeMode
+                ? com.android.internal.R.string.reboot_safemode_title
+                : ( mReboot ? com.android.internal.R.string.reboot_title
+                : com.android.internal.R.string.power_off);
 
         Log.d(TAG, "Notifying thread to start shutdown longPressBehavior=" + longPressBehavior);
 
         if (confirm) {
-            final CloseDialogReceiver closer = new CloseDialogReceiver(context);
             if (sConfirmDialog != null) {
                 sConfirmDialog.dismiss();
+                sConfirmDialog = null;
             }
-            sConfirmDialog = new AlertDialog.Builder(context)
-                    .setTitle(mRebootSafeMode
-                            ? com.android.internal.R.string.reboot_safemode_title
-                            : (mReboot
-                            ? com.android.internal.R.string.reboot_title
-                            :  com.android.internal.R.string.power_off))
-                    .setMessage(resourceId)
-                    .setPositiveButton(com.android.internal.R.string.yes, new DialogInterface.OnClickListener() {
+
+            KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+            boolean locked = km.inKeyguardRestrictedInputMode() && km.isKeyguardSecure();
+
+            if (mReboot && !mRebootSafeMode && !locked) {
+                sConfirmDialog = new AlertDialog.Builder(context)
+                    .setTitle(titleResourceId)
+                    .setItems(com.android.internal.R.array.reboot_options, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int which) {
-                            beginShutdownSequence(context);
+                            if (which < 0)
+                                return;
+                            String actions[] = context.getResources().
+                                    getStringArray(com.android.internal.R.array.reboot_actions);
+                            if (actions != null && which < actions.length)
+                                mRebootReason = actions[which];
+                            rebootConfirmInner(context, titleResourceId, resourceId);
                         }
                     })
-                    .setNegativeButton(com.android.internal.R.string.no, null)
                     .create();
-            closer.dialog = sConfirmDialog;
-            sConfirmDialog.setOnDismissListener(closer);
-            sConfirmDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
-            sConfirmDialog.show();
+                 sConfirmDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+                     public boolean onKey (DialogInterface dialog, int keyCode, KeyEvent event) {
+                         if (keyCode == KeyEvent.KEYCODE_BACK) {
+                             mReboot = false;
+                             dialog.cancel();
+                         }
+                         return true;
+                     }
+                 });
+                final CloseDialogReceiver closer = new CloseDialogReceiver(context);
+                closer.dialog = sConfirmDialog;
+                sConfirmDialog.setOnDismissListener(closer);
+                sConfirmDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
+                sConfirmDialog.show();
+
+            } else {
+                rebootConfirmInner(context, titleResourceId, resourceId);
+            }
+
         } else {
             beginShutdownSequence(context);
         }
