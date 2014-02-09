@@ -43,6 +43,7 @@ import android.os.Vibrator;
 import android.os.SystemVibrator;
 import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
+import android.provider.Settings;
 
 import com.android.internal.telephony.ITelephony;
 
@@ -156,12 +157,17 @@ public final class ShutdownThread extends Thread {
             }
 
             KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
-            boolean locked = km.inKeyguardRestrictedInputMode() && km.isKeyguardSecure();
 
-            if (mReboot && !mRebootSafeMode && !locked) {
+            boolean showAdvancedRebootMenu = (!(km.inKeyguardRestrictedInputMode() &&
+                                                km.isKeyguardSecure()) &&
+                                                (Settings.Secure.getInt(context.getContentResolver(),
+                                                Settings.Secure.ADVANCED_REBOOT, 0) == 1));
+
+            if (showAdvancedRebootMenu && mReboot && !mRebootSafeMode) {
                 sConfirmDialog = new AlertDialog.Builder(context)
                     .setTitle(titleResourceId)
-                    .setItems(com.android.internal.R.array.reboot_options, new DialogInterface.OnClickListener() {
+                    .setItems(com.android.internal.R.array.reboot_options,
+                            new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int which) {
                             if (which < 0)
                                 return;
